@@ -58,12 +58,140 @@ class ConstraintManager:
             lpSum(self.lp_variables[(player, position)] for player, position in lineup) <= len(lineup) - 1,
             constraint_name
         )
+    def add_qb_stack_constraints(self):
+        """
+        Add constraints to enforce stacking of players from the same team as the QB.
+        """
+        qb_stack_config = self.config.get("qb_stack_requirements", {})
+        min_stack = qb_stack_config.get("min_stack", 1)  # Default to 1
+        eligible_positions = qb_stack_config.get("positions", ["WR", "TE"])  # Default to WR and TE
+
+        # Get all QBs
+        qb_vars = [
+            (player, pos) for player in self.players for pos in player.position if pos == "QB"
+        ]
+
+        for qb, _ in qb_vars:
+            # Get eligible stack players (WR/TE) from the same team as the QB
+            eligible_stack_players = [
+                (player, pos)
+                for player in self.players
+                for pos in player.position
+                if pos in eligible_positions and player.team == qb.team
+            ]
+
+            # Enforce minimum stack size with the QB
+            if eligible_stack_players:
+                self.problem += (
+                    lpSum(self.lp_variables[key] for key in eligible_stack_players)
+                    >= min_stack * self.lp_variables[(qb, "QB")],
+                    f"QB_Stack_{qb.name}_Min_{min_stack}",
+                )
+
+    def add_qb_runback_constraints(self):
+        """
+        Add constraints to enforce a 'runback' of at least one player from the opposing team of the QB.
+        """
+        qb_runback_config = self.config.get("qb_runback_requirements", {})
+        min_runback = qb_runback_config.get("min_runback", 1)  # Default to 1
+        eligible_positions = qb_runback_config.get("positions", ["WR", "RB"])  # Default to WR and RB
+
+        # Get all QBs
+        qb_vars = [
+            (player, pos) for player in self.players for pos in player.position if pos == "QB"
+        ]
+
+        for qb, _ in qb_vars:
+            # Identify the opposing team for the QB
+            opposing_team = qb.opponent  # Assuming players have an `opponent` attribute
+
+            # Get eligible runback players (e.g., WR/RB) from the opposing team
+            eligible_runback_players = [
+                (player, pos)
+                for player in self.players
+                for pos in player.position
+                if pos in eligible_positions and player.team == opposing_team
+            ]
+
+            # Enforce minimum runback size for the opposing team
+            if eligible_runback_players:
+                self.problem += (
+                    lpSum(self.lp_variables[key] for key in eligible_runback_players)
+                    >= min_runback * self.lp_variables[(qb, "QB")],
+                    f"QB_Runback_{qb.name}_Min_{min_runback}",
+                )
+
+    def add_offense_vs_defense_constraints(self):
+        """
+        Add a constraint to limit the number of offensive players against a selected defense.
+        """
+        max_offense_vs_defense = self.config.get("max_offense_vs_defense", None)
+        if max_offense_vs_defense is None:
+            return  # If not specified, no constraint is applied
+
+        for defense in [p for p in self.players if "DST" in p.position]:
+            # Get all offensive players playing against this defense's team
+            offensive_players = [
+                (player, pos)
+                for player in self.players
+                for pos in player.position
+                if player.team == defense.opponent and pos != "DST"
+            ]
+
+            if offensive_players:
+                # If the defense is selected, limit the number of offensive players from its opposing team
+                self.problem += (
+                    lpSum(self.lp_variables[key] for key in offensive_players)
+                    <= max_offense_vs_defense * self.lp_variables[(defense, "DST")],
+                    f"Offense_vs_Defense_{defense.team}",
+                )
+
+
 
     def add_single_player_constraints(self):
         for player in self.players:
             self.problem += lpSum(
                 self.lp_variables[(player, position)] for position in player.position
             ) <= 1, f"Single_Use_{player.name}"
+
+    def add_team_limit_with_qb(self):
+        """
+        Add a constraint to limit the number of players from a team unless paired with the QB.
+        """
+        max_non_qb_team_limit = self.config.get("max_non_qb_team_limit", 2)  # Default to 2
+
+        # Iterate over all teams
+        for team in set(player.team for player in self.players):
+            # Get all players from the team
+            team_players = [
+                (player, pos)
+                for player in self.players
+                for pos in player.position
+                if player.team == team
+            ]
+
+            # Identify the QB(s) for the team
+            qb_vars = [
+                (player, pos)
+                for player, pos in team_players
+                if pos == "QB"
+            ]
+
+            # Exclude the QB from the rest of the players
+            non_qb_players = [
+                (player, pos)
+                for player, pos in team_players
+                if pos != "QB"
+            ]
+
+            if qb_vars and non_qb_players:
+                # Ensure the number of non-QB players is limited unless the QB is selected
+                self.problem += (
+                    lpSum(self.lp_variables[key] for key in non_qb_players)
+                    <= max_non_qb_team_limit
+                    + max_non_qb_team_limit * lpSum(self.lp_variables[key] for key in qb_vars),
+                    f"Team_Limit_With_QB_{team}",
+                )
 
     def add_static_constraints(self):
         '''
@@ -73,5 +201,9 @@ class ConstraintManager:
         self.add_position_constraints()
         self.add_global_team_limit()
         self.add_single_player_constraints()
+        self.add_qb_stack_constraints()
+        self.add_qb_runback_constraints()
+        self.add_offense_vs_defense_constraints()
+
 
 

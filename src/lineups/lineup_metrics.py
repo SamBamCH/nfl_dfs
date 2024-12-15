@@ -25,7 +25,7 @@ def calculate_exposure(lineups, players):
             "Name": player.name,
             "position": player.position,
             "Team": player.team,
-            "Opp": player.opp,
+            "Opp": player.opponent,
             "Salary": player.salary,
             "Exposure (%)": exposure,
             "ownership": player.ownership, 

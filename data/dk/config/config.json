@@ -18,14 +18,31 @@
     "global_team_limit": 4,
     "projection_minimum": 5,
     "randomness_amount": 0,
-    "min_lineup_salary": 49500,
-    "minutes_min": 20,
+    "min_lineup_salary": 49800,
 	"player_combination_limits": {
     "pairs": [
     ],
     "trios": [
     ]
     },
-    "ownership_lambda": 0.0,
-    "exposure_penalty_weight": 0.0
+    "ownership_lambda": 0.20,
+    "exposure_penalty_weights": {
+        "QB": 10,
+        "RB": 1,
+        "WR": 1, 
+        "TE": 1,
+        "DST": 1
+    },
+    "correlation_adjustment": 0.50,
+    "qb_stack_requirements": {
+        "min_stack": 1, 
+        "positions": ["WR", "TE"]
+    },
+    "qb_runback_requirements": {
+        "min_runback": 0,
+        "positions": ["WR", "RB"]
+    },
+    "max_offense_vs_defense": 1,
+    "max_non_qb_team_limit": 1
+
 }

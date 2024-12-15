@@ -62,10 +62,12 @@ class DataManager:
                     if "DST" not in positions and "QB" not in positions:
                         positions.append("FLEX")  # Append "FLEX" for DraftKings
 
+                    opp = row["Opp"].split()[-1]  # Take the last part of "vs PIT" or "@ DET"
+
                     player = Player(
                         name=row["Name"].strip(),
                         team=row["Team"],
-                        opp=row["Opp"],
+                        opp=opp,
                         position=positions,
                         salary=int(row["Salary"].replace(",", "")),
                         stddev=float(row["STDV"]),
