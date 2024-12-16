@@ -11,7 +11,7 @@ class ConstraintManager:
 
     def add_salary_constraints(self):
         max_salary = 50000 if self.site == "dk" else 60000
-        min_salary = 49000 if self.site == "dk" else 59000
+        min_salary = 49500 if self.site == "dk" else 59000
 
         self.problem += lpSum(
             player.salary * self.lp_variables[(player, position)]
@@ -203,7 +203,7 @@ class ConstraintManager:
         self.add_single_player_constraints()
         self.add_qb_stack_constraints()
         self.add_qb_runback_constraints()
-        self.add_offense_vs_defense_constraints()
+        # self.add_offense_vs_defense_constraints()
 
 
 

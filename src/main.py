@@ -46,7 +46,7 @@ def main():
 
     # Initialize the optimizer
     if process == 'main':
-        num_lineups = 20  # Number of lineups to generate
+        num_lineups = 190  # Number of lineups to generate
         num_uniques = 1 # Minimum unique players between lineups
         optimizer = Optimizer(site, players, num_lineups, num_uniques, data_manager.config)
 

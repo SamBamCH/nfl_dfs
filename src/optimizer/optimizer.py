@@ -95,7 +95,7 @@ class Optimizer:
         # Weights for each component in the objective function
         lambda_weight = self.config.get("ownership_lambda", 0)
         exposure_penalty_weights = self.config.get("exposure_penalty_weights", {})
-        correlation_adjustment = self.config.get("correlation_adjustment", 0.5)
+        correlation_adjustment = self.config.get("correlation_adjustment", 0.0)
 
         position_corr = np.array([
             [0.000, 0.056, 0.455, 0.411, -0.044, 0.271, 0.044, 0.147, 0.226, -0.424],  # QB
@@ -212,13 +212,15 @@ class Optimizer:
                 for position in player.position
             }
 
+
+
             # Step 5: Set the scaled and penalized objective function
             self.problem.setObjective(
                 lpSum(
                     (
                         scaled_projections[(player, position)] -
                         (lambda_weight * scaled_ownership[player]) -
-                        (3 * scaled_exposure[(player, position)])
+                        scaled_exposure[(player, position)]
                     ) * self.lp_variables[(player, position)]
                     for player in self.players
                     for position in player.position
