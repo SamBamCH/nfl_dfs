@@ -18,7 +18,7 @@ class Player:
         self.gametime = None
 
     def __str__(self):
-        return f"Player(name={self.name}, fpts={self.fpts}, own={self.ownership}, id={self.id})"
+        return f"Player(name={self.name},team={self.team},opp={self.opponent}, position={self.position} fpts={self.fpts}, own={self.ownership}, id={self.id})"
 
 
 

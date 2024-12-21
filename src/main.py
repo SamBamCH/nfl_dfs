@@ -46,7 +46,7 @@ def main():
 
     # Initialize the optimizer
     if process == 'main':
-        num_lineups = 190  # Number of lineups to generate
+        num_lineups = 110  # Number of lineups to generate
         num_uniques = 1 # Minimum unique players between lineups
         optimizer = Optimizer(site, players, num_lineups, num_uniques, data_manager.config)
 
@@ -68,11 +68,9 @@ def main():
 if __name__ == "__main__":
     main()
 
-#TODO: limit players/team to 1 unless paired with QB - check Chan's solver to see if he solved it. 
 #TODO: lateswap - test after lock to dial in lock constraint. need to check that the player.gametime matches the new and old format. 
 #TODO: modularize logic to be able to use with other sports, with a few additions
     ###wrangle constraints all into the constraints class. 
         ### could have different functions for different sports' constraints? i.e. add_{sport}_constraints()
-#TODO: NFL correlated samples for optimization. 
 #TODO: set min proj as a tight constraint and optimize for leverage? 
 #TODO: can add other factors to the count variables. i.e. variance score * count to make the more variant players penalized more quickly. 

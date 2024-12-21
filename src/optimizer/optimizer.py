@@ -93,9 +93,54 @@ class Optimizer:
                     players_by_game[game_key]["team_b"].append(player)
 
         # Weights for each component in the objective function
-        lambda_weight = self.config.get("ownership_lambda", 0)
+        baseline_fpts = None
+        baseline_ownership = None
+        ownership_buffer = self.config.get("ownership_buffer", 0.05)
         exposure_penalty_weights = self.config.get("exposure_penalty_weights", {})
         correlation_adjustment = self.config.get("correlation_adjustment", 0.0)
+        fpts_buffer = self.config.get("fpts_buffer", 0.95)
+
+        self.problem = LpProblem(f"NFL_DFS_Optimization", LpMaximize)
+
+        # Reinitialize constraints for the new problem
+        constraint_manager = ConstraintManager(
+            self.site, self.problem, self.players, self.lp_variables, self.config
+        )
+
+        constraint_manager.add_static_constraints()  # Add static constraints
+
+        self.problem.setObjective(
+            lpSum(
+                player.fpts * self.lp_variables[(player, position)]
+                for player in self.players
+                for position in player.position
+            )
+        )
+
+        self.problem.writeLP("problem_stage1.lp")
+
+        try:
+            self.problem.solve(plp.GLPK(msg=0))
+        except plp.PulpSolverError:
+            print("Infeasibility during Stage 1 optimization.")
+            return lineups
+        
+        if plp.LpStatus[self.problem.status] != "Optimal":
+            print("No optimal solution found during Stage 1 optimization")
+            return lineups
+        
+        final_vars = [
+            key for key, var in self.lp_variables.items() if var.varValue == 1
+        ]
+        final_lineup = [(player, position) for player, position in final_vars]
+
+        baseline_fpts = sum(player.fpts for player, _ in final_lineup)
+        baseline_ownership = sum(player.ownership for player, _ in final_lineup)
+        max_ownership = (1-ownership_buffer) * baseline_ownership
+        min_fpts = fpts_buffer * baseline_fpts
+
+        print(f"Baseline FPTS: {baseline_fpts}, min_fpts: {min_fpts}, baseline ownership: {baseline_ownership}, ownership limit: {max_ownership}")
+
 
         position_corr = np.array([
             [0.000, 0.056, 0.455, 0.411, -0.044, 0.271, 0.044, 0.147, 0.226, -0.424],  # QB
@@ -111,6 +156,8 @@ class Optimizer:
         ])
 
         for i in range(self.num_lineups):
+            if i % 10 == 0:
+                print(i)
             # Step 1: Reset the optimization problem
             self.problem = LpProblem(f"NFL_DFS_Optimization_{i}", LpMaximize)
 
@@ -118,7 +165,10 @@ class Optimizer:
             constraint_manager = ConstraintManager(
                 self.site, self.problem, self.players, self.lp_variables, self.config
             )
+            self.problem.constraints.clear()  # Clears the existing constraints
+
             constraint_manager.add_static_constraints()  # Add static constraints
+            constraint_manager.add_optional_constraints(max_ownership, min_fpts)
 
             # Reapply all exclusion constraints from previous iterations
             for constraint in exclusion_constraints:
@@ -182,50 +232,24 @@ class Optimizer:
                     for position in player.position:
                         random_projections[(player, position)] = adjusted_projections[i]
 
-            
-            random_ownership = {
-                player: np.random.normal(player.ownership, player.std_ownership * self.config["randomness_amount"] / 100)
-                for player in self.players
-            }
-
             # Step 3: Calculate global max for scaling based on random samples
             max_fpts = max(random_projections.values(), default=1)  # Avoid division by zero
-            max_ownership = max(random_ownership.values(), default=1)
-            max_exposure = max(max(self.player_exposure.values(), default=0), 1)
-
 
             # Step 4: Scale each variable to range [0, 1]
             scaled_projections = {
                 key: value / max_fpts for key, value in random_projections.items()
             }
 
-            scaled_ownership = {
-                player: value / max_ownership for player, value in random_ownership.items()
-            }
-
-            scaled_exposure = {
-                (player, position): (
-                    self.player_exposure[player] / max_exposure *
-                    exposure_penalty_weights.get(position, 0.01)  # Default penalty weight
-                )
-                for player in self.players
-                for position in player.position
-            }
-
-
-
             # Step 5: Set the scaled and penalized objective function
             self.problem.setObjective(
                 lpSum(
-                    (
-                        scaled_projections[(player, position)] -
-                        (lambda_weight * scaled_ownership[player]) -
-                        scaled_exposure[(player, position)]
-                    ) * self.lp_variables[(player, position)]
+                    scaled_projections[(player, position)] 
+                    * self.lp_variables[(player, position)]
                     for player in self.players
                     for position in player.position
                 )
             )
+            self.problem.writeLP("problem.lp")
 
             # Solve the problem
             try:
@@ -248,7 +272,7 @@ class Optimizer:
 
             # Step 7: Update player exposure
             for player, position in final_vars:
-                self.player_exposure[player] += 2 * player.bust
+                self.player_exposure[player] += 1
 
             # Step 8: Add exclusion constraint for uniqueness
             player_ids = [player.id for player, _ in final_vars]
