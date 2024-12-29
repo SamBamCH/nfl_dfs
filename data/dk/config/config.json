@@ -16,8 +16,8 @@
     "matchup_at_least": {},
     "custom_correlations": {},
     "global_team_limit": 4,
-    "projection_minimum": 4,
-    "randomness_amount": 5,
+    "projection_minimum": 1,
+    "randomness_amount": 35,
     "min_lineup_salary": 49000,
 	"player_combination_limits": {
     "pairs": [
@@ -27,24 +27,24 @@
     },
     "ownership_lambda": 0.20,
     "exposure_penalty_weights": {
-        "QB": 0.00,
+        "QB": 0.05,
         "RB": 0.00,
         "WR": 0.00, 
         "TE": 0.00,
-        "DST": 0.00
+        "DST": 0.5
     },
-    "correlation_adjustment": 0.75,
+    "correlation_adjustment": 0,
     "qb_stack_requirements": {
-        "min_stack": 1, 
-        "positions": ["WR", "TE"]
+        "min_stack": 2, 
+        "positions": ["WR", "TE", "RB"]
     },
     "qb_runback_requirements": {
         "min_runback": 1,
-        "positions": ["WR", "RB"] 
+        "positions": ["WR", "RB", "TE"] 
     },
     "max_offense_vs_defense": 2,
-    "max_non_qb_team_limit": 2, 
-    "ownership_buffer": 0.0,
-    "fpts_buffer": 0.0
+    "max_non_qb_team_limit": 10, 
+    "ownership_buffer": 0.10,
+    "fpts_buffer": 0.95
 
 }

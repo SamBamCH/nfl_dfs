@@ -120,7 +120,7 @@ class Optimizer:
         self.problem.writeLP("problem_stage1.lp")
 
         try:
-            self.problem.solve(plp.GLPK(msg=0))
+            self.problem.solve(plp.PULP_CBC_CMD(msg=False))
         except plp.PulpSolverError:
             print("Infeasibility during Stage 1 optimization.")
             return lineups
@@ -253,7 +253,7 @@ class Optimizer:
 
             # Solve the problem
             try:
-                self.problem.solve(plp.GLPK(msg=0))
+                self.problem.solve(plp.PULP_CBC_CMD(msg=False))
             except plp.PulpSolverError:
                 print(f"Infeasibility reached during optimization. Only {len(lineups.lineups)} lineups generated.")
                 break

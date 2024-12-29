@@ -41,7 +41,7 @@ class Lineups:
         with open(file_path, "w") as f:
             if site == "dk":
                 f.write(
-                    "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Own. Prod.,Own. Sum.\n"
+                    "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Own. Prod.,Own. Sum.,Team Stack,Runback,Stack Positions\n"
                 )
             else:
                 f.write(
@@ -58,14 +58,38 @@ class Lineups:
                 own_p = np.prod([player.ownership / 100 for player, _, _ in sorted_lineup])
                 own_s = sum(player.ownership for player, _, _ in sorted_lineup)
 
+                # Identify QB team and opponent
+                qb = next((player for player, pos, _ in sorted_lineup if pos == "QB"), None)
+                qb_team = qb.team
+                qb_opponent = qb.opponent
+
+                # Calculate stack and runback details
+                stack_positions = []
+                runback_positions = []
+                team_stack_count = 0
+                runback_count = 0
+
+                for player, pos, _ in sorted_lineup:
+                    if player.team == qb_team and pos != "QB":
+                        team_stack_count += 1
+                        stack_positions.append(pos)
+                    elif player.team == qb_opponent:
+                        runback_count += 1
+                        runback_positions.append(pos)
+
+                # Generate stack strings
+                team_stack_str = f"QB +{team_stack_count} | {runback_count}"
+                stack_positions_str = f"Stack: {', '.join(stack_positions)}; Runback: {', '.join(runback_positions)}"
 
                 # Create the lineup string
                 lineup_str = ",".join(
                     [f"{player.name} ({player.id})" for player, _, _ in sorted_lineup]
                 )
                 f.write(
-                    f"{lineup_str},{salary},{round(fpts_p, 2)},{own_p},{own_s}\n"
+                    f"{lineup_str},{salary},{round(fpts_p, 2)},{own_p},{own_s},{team_stack_str},{runback_count},{stack_positions_str}\n"
                 )
+
+
 
 
     def __len__(self):

@@ -8,10 +8,12 @@ class ConstraintManager:
         self.players = players
         self.lp_variables = lp_variables
         self.config = config
+        self.qb_selected_vars = {}  # Dictionary to store QB selection variables (keyed by player)
+
 
     def add_salary_constraints(self):
         max_salary = 50000 if self.site == "dk" else 60000
-        min_salary = 49500 if self.site == "dk" else 59000
+        min_salary = self.config.get("min_lineup_salary") if self.site == "dk" else 59000
 
         self.problem += lpSum(
             player.salary * self.lp_variables[(player, position)]
@@ -62,12 +64,10 @@ class ConstraintManager:
         """
         Centralize the logic to create and store binary variables for whether a QB is selected.
         """
-        self.qb_selected_vars = {}  # Dictionary to store QB selection variables
-
         for qb, _ in [
             (player, pos) for player in self.players for pos in player.position if pos == "QB"
         ]:
-            if qb.name not in self.qb_selected_vars:
+            if qb not in self.qb_selected_vars:
                 # Create the binary variable for whether the QB is selected
                 qb_selected = LpVariable(f"qb_{qb.name}_selected", 0, 1, cat="Binary")
 
@@ -77,8 +77,8 @@ class ConstraintManager:
                     f"Select_QB_{qb.name}"
                 )
 
-                # Store the variable for reuse
-                self.qb_selected_vars[qb.name] = qb_selected
+                # Store the variable for reuse (keyed by QB object)
+                self.qb_selected_vars[qb] = qb_selected
 
     def add_qb_stack_constraints(self):
         """
@@ -102,7 +102,7 @@ class ConstraintManager:
 
             if eligible_stack_players:
                 # Reuse the pre-defined QB selection variable
-                qb_selected = self.qb_selected_vars[qb.name]
+                qb_selected = self.qb_selected_vars[qb]
 
                 # Enforce stacking only if the QB is selected
                 self.problem += (
@@ -138,7 +138,7 @@ class ConstraintManager:
 
             if eligible_runback_players:
                 # Reuse the pre-defined QB selection variable
-                qb_selected = self.qb_selected_vars[qb.name]
+                qb_selected = self.qb_selected_vars[qb]
 
                 # Enforce runback only if the QB is selected
                 self.problem += (
@@ -207,31 +207,58 @@ class ConstraintManager:
         This applies conditional constraints based on which QB is selected.
         """
         max_non_qb_team_limit = self.config.get("max_non_qb_team_limit", 2)  # Default to 2
-        qb_team_vars = {}  # This will store QB team selections
 
-        # Iterate over all QBs to create conditional constraints
-        for player in self.players:
-            if "QB" in player.position:  # If the player is a QB
-                qb_team = player.team
+        # Ensure QB selection variables are created
+        if not self.qb_selected_vars:
+            raise ValueError("QB selection variables must be created before adding conditional team limits.")
 
-                # Check if the QB is selected
-                qb_team_vars[qb_team] = LpVariable(f"team_{qb_team}_selected", 0, 1, cat='Binary')
+        # Iterate over all QBs and create team-based constraints
+        for qb, qb_selected in self.qb_selected_vars.items():
+            qb_team = qb.team
+            opponent_team = qb.opponent  # Assuming players have an `opponent` attribute
 
-                # Now apply constraints for players from that team
-                team_players = [
-                    (p, pos) for p in self.players for pos in p.position if p.team == qb_team and p != player
+            # Get players from the QB's team (excluding the QB itself)
+            qb_team_players = [
+                (player, pos)
+                for player in self.players
+                for pos in player.position
+                if player.team == qb_team and pos != "QB"
+            ]
+
+            # Get players from the opponent team
+            opponent_team_players = [
+                (player, pos)
+                for player in self.players
+                for pos in player.position
+                if player.team == opponent_team
+            ]
+
+            # Combine all exempt players (QB's team + opponent team)
+            exempt_players = set(qb_team_players + opponent_team_players)
+
+            # Iterate over all teams and apply limits for non-exempt players
+            for team in set(player.team for player in self.players):
+                # Skip exempt teams (QB's team and opponent's team)
+                if team == qb_team or team == opponent_team:
+                    continue
+
+                # Get non-exempt players from this team
+                non_exempt_players = [
+                    (player, pos)
+                    for player in self.players
+                    for pos in player.position
+                    if player.team == team and (player, pos) not in exempt_players
                 ]
 
-                # Apply conditional team limit for non-QB players of that team
-                for team_player, pos in team_players:
-                    # Make the constraint name unique by including the team, QB, and position
-                    constraint_name = f"Team_Limit_With_QB_{qb_team}_{team_player.name}_{pos}"
+                if non_exempt_players:
+                    # Add a constraint for limiting non-exempt players
+                    constraint_name = f"Team_Limit_{team}_With_QB_{qb.name}"
                     self.problem += (
-                        self.lp_variables[(team_player, pos)] <= (
-                            max_non_qb_team_limit + max_non_qb_team_limit * qb_team_vars[qb_team]
-                        ),
-                        constraint_name  # Use a dynamic constraint name based on position
+                        lpSum(self.lp_variables[(player, pos)] for player, pos in non_exempt_players)
+                        <= max_non_qb_team_limit * (1 - qb_selected) + len(non_exempt_players) * qb_selected,
+                        constraint_name
                     )
+
 
     def add_static_constraints(self):
         """
@@ -247,7 +274,7 @@ class ConstraintManager:
         self.add_qb_stack_constraints()
         self.add_qb_runback_constraints()
 
-        self.add_conditional_team_limit_with_qb()
+        # self.add_conditional_team_limit_with_qb()
         self.add_offense_vs_defense_constraints()
 
 

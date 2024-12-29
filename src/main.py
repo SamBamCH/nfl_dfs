@@ -46,7 +46,7 @@ def main():
 
     # Initialize the optimizer
     if process == 'main':
-        num_lineups = 110  # Number of lineups to generate
+        num_lineups = 170  # Number of lineups to generate
         num_uniques = 1 # Minimum unique players between lineups
         optimizer = Optimizer(site, players, num_lineups, num_uniques, data_manager.config)
 
@@ -58,7 +58,7 @@ def main():
         print(exposure_df)
 
         # Export the lineups
-        lineups.export_to_csv("data/output/optimal_lineups.csv", site=optimizer.site)
+        lineups.export_to_csv("C:/Users/samba/nfl_dfs/data/output/optimal_lineups.csv", site=optimizer.site)
 
     else :
         pass # put late swap logic here, when it works. 
