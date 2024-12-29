@@ -41,11 +41,11 @@ class Lineups:
         with open(file_path, "w") as f:
             if site == "dk":
                 f.write(
-                    "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Own. Prod.,Own. Sum.,Team Stack,Runback,Stack Positions\n"
+                    "QB,RB,RB,WR,WR,WR,TE,FLEX,DST,Salary,Fpts Proj,Own. Prod.,Own. Sum.,Team Stack,Runback,Stack Positions,Runback Positions,Max Non-QB Team Players,Offensive vs Defensive,Ownership Array\n"
                 )
             else:
                 f.write(
-                    "PG,PG,SG,SG,SF,SF,PF,PF,C,Salary,Fpts Proj,Own. Prod.,Own. Sum.,Minutes,StdDev\n"
+                    "PG,PG,SG,SG,SF,SF,PF,PF,C,Salary,Fpts Proj,Own. Prod.,Own. Sum.,Minutes,StdDev,Max Non-QB Team Players,Offensive vs Defensive,Ownership Array\n"
                 )
 
             for lineup in self.lineups:
@@ -68,25 +68,49 @@ class Lineups:
                 runback_positions = []
                 team_stack_count = 0
                 runback_count = 0
+                max_non_qb_team_players = 0
+                offensive_count = 0
+                defensive_count = 0
+
+                # Track non-QB team players and offensive/defensive players
+                non_qb_team_players = {}
+                ownership_array = []
 
                 for player, pos, _ in sorted_lineup:
-                    if player.team == qb_team and pos != "QB":
-                        team_stack_count += 1
-                        stack_positions.append(pos)
-                    elif player.team == qb_opponent:
-                        runback_count += 1
-                        runback_positions.append(pos)
+                    ownership_array.append(player.ownership)
+                    if pos != "DST":
+                        offensive_count += 1
+
+                        if player.team != qb_team and player.team != qb_opponent:
+                            if player.team not in non_qb_team_players:
+                                non_qb_team_players[player.team] = 0
+                            non_qb_team_players[player.team] += 1
+
+                        if player.team == qb_team and pos != "QB":
+                            team_stack_count += 1
+                            stack_positions.append(pos)
+                        elif player.team == qb_opponent:
+                            runback_count += 1
+                            runback_positions.append(pos)
+                    else:
+                        defensive_count += 1
+
+                if non_qb_team_players:
+                    max_non_qb_team_players = max(non_qb_team_players.values())
 
                 # Generate stack strings
                 team_stack_str = f"QB +{team_stack_count} | {runback_count}"
-                stack_positions_str = f"Stack: {', '.join(stack_positions)}; Runback: {', '.join(runback_positions)}"
+                stack_positions_str = f"{'; '.join(stack_positions)},{'; '.join(runback_positions)}"
+
+                # Format ownership array as a line-separated string for Excel readability
+                ownership_array_str = "|".join(map(str, ownership_array))
 
                 # Create the lineup string
                 lineup_str = ",".join(
                     [f"{player.name} ({player.id})" for player, _, _ in sorted_lineup]
                 )
                 f.write(
-                    f"{lineup_str},{salary},{round(fpts_p, 2)},{own_p},{own_s},{team_stack_str},{runback_count},{stack_positions_str}\n"
+                    f"{lineup_str},{salary},{round(fpts_p, 2)},{own_p},{own_s},{team_stack_str},{runback_count},{stack_positions_str},{max_non_qb_team_players},{offensive_count}/{defensive_count},\"{ownership_array_str}\"\n"
                 )
 
 

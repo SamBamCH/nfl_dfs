@@ -203,61 +203,42 @@ class ConstraintManager:
 
     def add_conditional_team_limit_with_qb(self):
         """
-        Add a constraint to limit the number of players from a team unless paired with the QB.
-        This applies conditional constraints based on which QB is selected.
+        Add constraints to limit players from a team unless stacked with the QB.
         """
-        max_non_qb_team_limit = self.config.get("max_non_qb_team_limit", 2)  # Default to 2
+        max_non_qb_team_limit = self.config.get("max_non_qb_team_limit", 2)  # Default limit
 
         # Ensure QB selection variables are created
         if not self.qb_selected_vars:
             raise ValueError("QB selection variables must be created before adding conditional team limits.")
 
-        # Iterate over all QBs and create team-based constraints
         for qb, qb_selected in self.qb_selected_vars.items():
             qb_team = qb.team
-            opponent_team = qb.opponent  # Assuming players have an `opponent` attribute
+            opponent_team = qb.opponent  # QB's opponent team
 
-            # Get players from the QB's team (excluding the QB itself)
-            qb_team_players = [
-                (player, pos)
-                for player in self.players
-                for pos in player.position
-                if player.team == qb_team and pos != "QB"
-            ]
-
-            # Get players from the opponent team
-            opponent_team_players = [
-                (player, pos)
-                for player in self.players
-                for pos in player.position
-                if player.team == opponent_team
-            ]
-
-            # Combine all exempt players (QB's team + opponent team)
-            exempt_players = set(qb_team_players + opponent_team_players)
-
-            # Iterate over all teams and apply limits for non-exempt players
+            # Iterate over all teams
             for team in set(player.team for player in self.players):
-                # Skip exempt teams (QB's team and opponent's team)
-                if team == qb_team or team == opponent_team:
+                # Skip the QB's team and opponent team
+                if team in {qb_team, opponent_team}:
                     continue
 
-                # Get non-exempt players from this team
+                # Get skill position players from this team
                 non_exempt_players = [
                     (player, pos)
                     for player in self.players
                     for pos in player.position
-                    if player.team == team and (player, pos) not in exempt_players
+                    if player.team == team and pos not in {"QB", "DST"}
                 ]
 
                 if non_exempt_players:
-                    # Add a constraint for limiting non-exempt players
+                    # Limit players from this team unless the QB is not selected
                     constraint_name = f"Team_Limit_{team}_With_QB_{qb.name}"
                     self.problem += (
                         lpSum(self.lp_variables[(player, pos)] for player, pos in non_exempt_players)
-                        <= max_non_qb_team_limit * (1 - qb_selected) + len(non_exempt_players) * qb_selected,
+                        <= max_non_qb_team_limit,
                         constraint_name
                     )
+
+
 
 
     def add_static_constraints(self):
@@ -274,7 +255,7 @@ class ConstraintManager:
         self.add_qb_stack_constraints()
         self.add_qb_runback_constraints()
 
-        # self.add_conditional_team_limit_with_qb()
+        self.add_conditional_team_limit_with_qb()
         self.add_offense_vs_defense_constraints()
 
 

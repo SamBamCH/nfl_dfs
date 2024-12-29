@@ -92,9 +92,9 @@ class Optimizer:
                 else:
                     players_by_game[game_key]["team_b"].append(player)
 
+        # initialize exposure tracker
+        exposure_tracker = {player: 0 for player in self.players}
         # Weights for each component in the objective function
-        baseline_fpts = None
-        baseline_ownership = None
         ownership_buffer = self.config.get("ownership_buffer", 0.05)
         exposure_penalty_weights = self.config.get("exposure_penalty_weights", {})
         correlation_adjustment = self.config.get("correlation_adjustment", 0.0)
@@ -157,7 +157,7 @@ class Optimizer:
 
         for i in range(self.num_lineups):
             if i % 10 == 0:
-                print(i)
+                print(f"Generating lineup {i+1}/{self.num_lineups}...")
             # Step 1: Reset the optimization problem
             self.problem = LpProblem(f"NFL_DFS_Optimization_{i}", LpMaximize)
 
@@ -174,7 +174,7 @@ class Optimizer:
             for constraint in exclusion_constraints:
                 self.problem += constraint
 
-            # Step 2: Generate random samples for `fpts`, `boom`, and `ownership`
+            # Step 2: Generate random samples for fpts, boom, and ownership
             random_projections = {}
             for game, teams in players_by_game.items():
                 team_a_players = teams["team_a"]
@@ -240,10 +240,15 @@ class Optimizer:
                 key: value / max_fpts for key, value in random_projections.items()
             }
 
+            def calculate_penalty(player):
+                exposure_percentage = exposure_tracker[player] / self.num_lineups
+                penalty_weight = exposure_penalty_weights.get(player.position[0], 0)
+                return penalty_weight * exposure_percentage
+
             # Step 5: Set the scaled and penalized objective function
             self.problem.setObjective(
                 lpSum(
-                    scaled_projections[(player, position)] 
+                    (scaled_projections[(player, position)] - calculate_penalty(player))
                     * self.lp_variables[(player, position)]
                     for player in self.players
                     for position in player.position
@@ -271,8 +276,8 @@ class Optimizer:
             lineups.add_lineup(final_lineup)
 
             # Step 7: Update player exposure
-            for player, position in final_vars:
-                self.player_exposure[player] += 1
+            for player, position in final_lineup:
+                exposure_tracker[player] += 1
 
             # Step 8: Add exclusion constraint for uniqueness
             player_ids = [player.id for player, _ in final_vars]
@@ -285,9 +290,9 @@ class Optimizer:
             exclusion_constraints.append(exclusion_constraint)
 
         return lineups
-    
+        
 
-    
+        
 
 
 
